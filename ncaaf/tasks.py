@@ -1,8 +1,10 @@
 import pandas as pd
-from models import TeamMappings, FantasyDataLeagueHierarchy, FantasyDataGames
+from ncaaf.models import TeamMappings, FantasyDataLeagueHierarchy, FantasyDataGames
 import requests
+import boto3
+from io import StringIO
 
-from services import fd_base_url, fd_headers, cfbd_current_week
+from ncaaf.services import fd_base_url, fd_headers, cfbd_current_week
 
 
 # Mapping
@@ -11,7 +13,11 @@ def load_mappings():
     Mapping table is manually created and saved in data/ncaaf_mappings.csv
     It links team ID's from different sources
     """
-    df_mappings = pd.read_csv('data/ncaaf_mappings.csv', sep=',')
+    s3 = boto3.client('s3')
+    mapping_file = s3.get_object(Bucket='bet-caddie', Key='ncaaf_mappings.csv')
+    body = mapping_file['Body']
+    csv_string = body.read().decode('utf-8')
+    df_mappings = pd.read_csv(StringIO(csv_string), sep=',')
     mapping_dict = df_mappings.to_dict(orient='records')
     model_instances = [TeamMappings(**mapping) for mapping in mapping_dict]
     TeamMappings.objects.all().delete()

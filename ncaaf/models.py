@@ -32,8 +32,8 @@ class FantasyDataGames(models.Model):
     DateTime = models.DateTimeField()
     AwayTeam = models.CharField(max_length=120)
     HomeTeam = models.CharField(max_length=120)
-    AwayTeamID = models.ForeignKey(FantasyDataLeagueHierarchy, on_delete=models.DO_NOTHING)
-    HomeTeamID = models.ForeignKey(FantasyDataLeagueHierarchy, on_delete=models.DO_NOTHING)
+    AwayTeamID = models.ForeignKey(FantasyDataLeagueHierarchy, on_delete=models.DO_NOTHING, related_name='away_team')
+    HomeTeamID = models.ForeignKey(FantasyDataLeagueHierarchy, on_delete=models.DO_NOTHING, related_name='home_team')
     AwayTeamName = models.CharField(max_length=120)
     HomeTeamName = models.CharField(max_length=120)
     AwayTeamScore = models.IntegerField()
@@ -64,7 +64,7 @@ class FantasyDataGames(models.Model):
 
 class TeamMappings(models.Model):
     fd_team_id = models.IntegerField()
-    fd_team_key = models.ForeignKey(FantasyDataLeagueHierarchy, on_delete=models.SET_NULL, null=True)
+    fd_team_key = models.CharField(max_length=120)
     fo_team = models.CharField(max_length=120)
     cfbd_team_id = models.IntegerField()
 
