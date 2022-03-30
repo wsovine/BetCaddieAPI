@@ -1,6 +1,4 @@
 import pandas as pd
-import pytz
-from datetime import timezone
 
 from ncaaf.models import TeamMappings, FantasyDataLeagueHierarchy, FantasyDataGames
 import requests

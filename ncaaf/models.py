@@ -25,7 +25,7 @@ class FantasyDataLeagueHierarchy(models.Model):
 class FantasyDataGames(models.Model):
     GameID = models.IntegerField(primary_key=True)
     Season = models.IntegerField(null=True, blank=True)
-    SeasonType = models.IntegerField(null=True, blank=True)
+    SeasonType = models.IntegerField(null=True, blank=True)  # 1=Regular, 2=Pre, 3=Post, 4=Off, 5=AllStar
     Week = models.IntegerField(null=True, blank=True)
     Status = models.CharField(max_length=120, null=True, blank=True)
     Day = models.DateField(null=True, blank=True)
