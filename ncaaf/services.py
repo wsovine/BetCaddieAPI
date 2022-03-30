@@ -35,7 +35,6 @@ def cfbd_current_week() -> dict:
     return cur_week.to_dict()
 
 
-
 # FantasyData.io / SportsData.io
 fd_base_url = 'https://api.sportsdata.io/api/cfb/odds/json/'
 fd_headers = {

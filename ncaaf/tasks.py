@@ -1,6 +1,6 @@
 import pandas as pd
 
-from ncaaf.models import TeamMappings, FantasyDataLeagueHierarchy, FantasyDataGames
+from ncaaf.models import TeamMappings, FantasyDataLeagueHierarchy, FantasyDataGames, FootballOutsidersFPlusRatings
 import requests
 import boto3
 from io import StringIO
@@ -16,7 +16,7 @@ def load_mappings():
     It links team ID's from different sources
     """
     s3 = boto3.client('s3')
-    mapping_file = s3.get_object(Bucket='bet-caddie', Key='ncaaf_mappings.csv')
+    mapping_file = s3.get_object(Bucket='bet-caddie', Key='ncaaf/ncaaf_mappings.csv.csv')
     body = mapping_file['Body']
     csv_string = body.read().decode('utf-8')
     df_mappings = pd.read_csv(StringIO(csv_string), sep=',')
@@ -56,6 +56,23 @@ def load_fd_games(season: int = None, post_season: bool = False):
     for game in games_dict:
         FantasyDataGames.objects.update_or_create(**game)
 
+
 # Football Outsiders
+def load_fo_fplus_ratings(season: int = None):
+    if not season:
+        week = cfbd_current_week()
+        season = week['season']
+    s3 = boto3.client('s3')
+    mapping_file = s3.get_object(Bucket='bet-caddie', Key=f'ncaaf/{season} COLLEGE FOOTBALL F+ RATINGS.csv')
+    body = mapping_file['Body']
+    csv_string = body.read().decode('utf-8')
+    df_fplus = pd.read_csv(StringIO(csv_string), sep=',')
+
+    df_fplus.columns = df_fplus.columns.str.replace('+', '_plus')
+    df_fplus = df_fplus[['Team', 'F_plus', 'OF_plus', 'DF_plus', 'FEI', 'SP_plus']]
+    fplus_dict = df_fplus.to_dict(orient='records')
+
+    for ratings in fplus_dict:
+        FootballOutsidersFPlusRatings.objects.update_or_create(**ratings)
 
 # Odds API

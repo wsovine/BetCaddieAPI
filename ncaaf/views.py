@@ -20,7 +20,6 @@ def current_or_latest_week(request) -> JsonResponse:
 # GAMES
 @api_view(['GET'])
 def game_list(request, season: int, season_type: str, week: int) -> JsonResponse:
-    cfbd_games = cfbd_games_api.get_games(year=season, season_type=season_type, week=week)
     fd_games = FantasyDataGames.objects.filter(
         Season=season,
         SeasonType=3 if season_type == 'postseason' else 1,

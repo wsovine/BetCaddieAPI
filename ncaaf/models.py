@@ -62,9 +62,39 @@ class FantasyDataGames(models.Model):
     Stadium_GeoLong = models.FloatField(null=True, blank=True)
 
 
+class FootballOutsidersFPlusRatings(models.Model):
+    Team = models.CharField(max_length=120, primary_key=True)
+    F_plus = models.FloatField()
+    OF_plus = models.FloatField()
+    DF_plus = models.FloatField()
+    FEI = models.FloatField()
+    SP_plus = models.FloatField()
+
+
 class TeamMappings(models.Model):
-    fd_team_id = models.IntegerField(null=True, blank=True)
-    fd_team_key = models.CharField(max_length=120, null=True, blank=True)
-    fo_team = models.CharField(max_length=120, null=True, blank=True)
+    fd_team_id = models.ForeignKey(FantasyDataLeagueHierarchy, to_field='TeamID', db_column='fd_team_id',
+                                   null=True, blank=True, on_delete=models.DO_NOTHING, related_name='fd_team_id')
+    fo_team = models.ForeignKey(FootballOutsidersFPlusRatings, to_field='Team', db_column='fo_team',
+                                null=True, blank=True, on_delete=models.DO_NOTHING, db_constraint=False)
     cfbd_team_id = models.IntegerField(null=True, blank=True)
 
+
+class GameBetCalcs(models.Model):
+    game_id = models.OneToOneField(FantasyDataGames, primary_key=True, on_delete=models.CASCADE)
+    away_team = models.ForeignKey(FantasyDataLeagueHierarchy, null=True, on_delete=models.CASCADE,
+                                  related_name='away_team')
+    home_team = models.ForeignKey(FantasyDataLeagueHierarchy, null=True, on_delete=models.CASCADE,
+                                  related_name='home_team')
+    away_elo_pre = models.IntegerField(null=True)
+    home_elo_pre = models.IntegerField(null=True)
+    away_elo_prob = models.FloatField(null=True)
+    home_elo_prob = models.FloatField(null=True)
+    away_elo_post = models.IntegerField(null=True)
+    home_elo_post = models.IntegerField(null=True)
+    home_hfa_elo_adj = models.IntegerField(null=True)
+    away_elo_adj = models.IntegerField(null=True)
+    home_elo_adj = models.IntegerField(null=True)
+    away_scoring_matchup = models.FloatField(null=True)
+    home_scoring_matchup = models.FloatField(null=True)
+    away_matchup_elo_adj = models.IntegerField(null=True)
+    home_matchup_elo_adj = models.IntegerField(null=True)
