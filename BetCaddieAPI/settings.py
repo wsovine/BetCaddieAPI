@@ -151,8 +151,8 @@ if DEBUG:
         'http://localhost:3001',
         'http://127.0.0.1:3001',
     ]
-else:
-    CORS_ORIGIN_WHITELIST = ['*']
+CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_CREDENTIALS = True
 
 # API Auth
 AUTH_USER_MODEL = 'api_auth.User'
