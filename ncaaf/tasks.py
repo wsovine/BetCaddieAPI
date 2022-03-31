@@ -57,6 +57,10 @@ def load_fd_games(season: int = None, post_season: bool = False):
 
     games_dict = df_games.to_dict(orient='records')
     for game in games_dict:
+        away_team = FantasyDataLeagueHierarchy(TeamID=game.pop('AwayTeamID'))
+        home_team = FantasyDataLeagueHierarchy(TeamID=game.pop('HomeTeamID'))
+        game['AwayTeam'] = away_team
+        game['HomeTeam'] = home_team
         FantasyDataGames.objects.update_or_create(**game)
 
 

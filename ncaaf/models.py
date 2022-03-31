@@ -34,10 +34,10 @@ class FantasyDataGames(models.Model):
     Status = models.CharField(max_length=120, null=True, blank=True)
     Day = models.DateField(null=True, blank=True)
     DateTime = models.DateTimeField(null=True, blank=True)
-    AwayTeam = models.CharField(max_length=120, null=True, blank=True)
-    HomeTeam = models.CharField(max_length=120, null=True, blank=True)
-    AwayTeamID = models.IntegerField(null=True, blank=True)
-    HomeTeamID = models.IntegerField(null=True, blank=True)
+    AwayTeam = models.ForeignKey(FantasyDataLeagueHierarchy, on_delete=models.DO_NOTHING, related_name='away_team',
+                                 db_constraint=False)
+    HomeTeam = models.ForeignKey(FantasyDataLeagueHierarchy, on_delete=models.DO_NOTHING, related_name='home_team',
+                                 db_constraint=False)
     AwayTeamName = models.CharField(max_length=120, null=True, blank=True)
     HomeTeamName = models.CharField(max_length=120, null=True, blank=True)
     AwayTeamScore = models.IntegerField(null=True, blank=True)
@@ -69,11 +69,11 @@ class FantasyDataGames(models.Model):
         # If the mapping does not exist then it is likely because the teams are not in FBS
         # we won't calculate these
         try:
-            away_team_mapping = TeamMappings.objects.get(fd_team=self.AwayTeamID)
+            away_team_mapping = TeamMappings.objects.get(fd_team=self.AwayTeam)
         except TeamMappings.DoesNotExist:
             return
         try:
-            home_team_mapping = TeamMappings.objects.get(fd_team=self.HomeTeamID)
+            home_team_mapping = TeamMappings.objects.get(fd_team=self.HomeTeam)
         except TeamMappings.DoesNotExist:
             return
 
