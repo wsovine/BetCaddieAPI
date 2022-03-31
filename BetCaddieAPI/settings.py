@@ -28,7 +28,9 @@ SECRET_KEY = 'django-insecure-(4!x=kj2#pm_qhn0961+a#jr6(_yht=vn@4sb!cb9p!3&xxv6h
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = bool(os.environ.get('DEBUG', False))
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['bet-caddie-api.herokuapp.com']
+if DEBUG:
+    ALLOWED_HOSTS = []
 
 
 # Application definition
