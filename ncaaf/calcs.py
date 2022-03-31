@@ -18,7 +18,7 @@ def new_rating_basic(winner_rating, loser_rating, k=20, drawn=False):
     return new_winner_rating, new_loser_rating
 
 
-def win_probability(elo1: int, elo2: int):
+def elo_win_probability(elo1: int, elo2: int):
     diff = elo1 - elo2
     p = 1 - 1 / (1 + 10 ** (diff / 400.0))
     return p
@@ -54,4 +54,8 @@ def new_ratings(winner_rating, loser_rating, drawn: bool = False, mov: int = 1):
     new_loser_rating = loser_rating + corr_m * k_mult * k * (actual_lose - expected_lose)
 
     return new_winner_rating, new_loser_rating
+
+
+def bayes_prob(prior, model, vegas):
+    return (prior * model) / ((prior * model) + (vegas * (1 - prior)))
 

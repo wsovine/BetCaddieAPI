@@ -2,7 +2,7 @@ from django.db import models
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from ncaaf.calcs import win_probability, new_ratings, implied_probability
+from ncaaf.calcs import elo_win_probability, new_ratings, implied_probability, bayes_prob
 
 
 class FantasyDataLeagueHierarchy(models.Model):
@@ -96,21 +96,23 @@ class FantasyDataGames(models.Model):
         game.home_hfa_elo_adj = 46 if not self.NeutralVenue else 0
 
         # Matchup difference
-        away_of_plus = away_team.mapping.fo_team.OF_plus
-        home_of_plus = home_team.mapping.fo_team.OF_plus
-        away_df_plus = away_team.mapping.fo_team.DF_plus
-        home_df_plus = home_team.mapping.fo_team.DF_plus
+        away_of_plus = away_team_mapping.fo_team.OF_plus
+        home_of_plus = home_team_mapping.fo_team.OF_plus
+        away_df_plus = away_team_mapping.fo_team.DF_plus
+        home_df_plus = home_team_mapping.fo_team.DF_plus
 
-        game.away_matchup_elo_adj = (away_of_plus - home_df_plus) * 200
-        game.home_matchup_elo_adj = (home_of_plus - away_df_plus) * 200
+        game.away_scoring_matchup = away_of_plus - home_df_plus
+        game.away_matchup_elo_adj = game.away_scoring_matchup * 200
+        game.home_scoring_matchup = home_of_plus - away_df_plus
+        game.home_matchup_elo_adj = game.home_scoring_matchup * 200
 
         # Add up all the adjustments
         game.away_elo_adj = game.away_elo_pre + game.away_matchup_elo_adj
         game.home_elo_adj = game.home_elo_pre + game.home_hfa_elo_adj + game.home_matchup_elo_adj
 
         # Fetch the win probability for each team
-        game.away_elo_prob = win_probability(game.away_elo_adj, game.home_elo_adj)
-        game.home_elo_prob = win_probability(game.home_elo_adj, game.away_elo_adj)
+        game.away_elo_prob = elo_win_probability(game.away_elo_adj, game.home_elo_adj)
+        game.home_elo_prob = elo_win_probability(game.home_elo_adj, game.away_elo_adj)
 
         # Calculate new elos
         if self.Status in ('Final', 'F/OT') and (self.AwayTeamScore and self.HomeTeamScore):
@@ -142,8 +144,14 @@ class FantasyDataGames(models.Model):
         else:
             game.home_ml_implied_prob = 1
 
+        game.away_ml_bayes_prob = bayes_prob(game.away_ml_implied_prob, game.away_elo_prob, game.away_ml_implied_prob)
+        game.home_ml_bayes_prob = bayes_prob(game.home_ml_implied_prob, game.home_elo_prob, game.home_ml_implied_prob)
+
         game.away_ml_er = game.away_elo_prob - game.away_ml_implied_prob
         game.home_ml_er = game.home_elo_prob - game.home_ml_implied_prob
+
+        game.away_ml_bayes_er = game.away_ml_bayes_prob - game.away_ml_implied_prob
+        game.home_ml_bayes_er = game.home_ml_bayes_prob - game.home_ml_implied_prob
 
         away_team.save()
         home_team.save()
@@ -190,8 +198,12 @@ class GameBetCalcs(models.Model):
     home_matchup_elo_adj = models.IntegerField(null=True)
     away_ml_implied_prob = models.FloatField(null=True)
     home_ml_implied_prob = models.FloatField(null=True)
+    away_ml_bayes_prob = models.FloatField(null=True)
+    home_ml_bayes_prob = models.FloatField(null=True)
     away_ml_er = models.FloatField(null=True)
     home_ml_er = models.FloatField(null=True)
+    away_ml_bayes_er = models.FloatField(null=True)
+    home_ml_bayes_er = models.FloatField(null=True)
 
 
 class TeamCalculatedRatings(models.Model):

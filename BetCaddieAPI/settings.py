@@ -14,6 +14,8 @@ from pathlib import Path
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+import dj_database_url
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -24,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-(4!x=kj2#pm_qhn0961+a#jr6(_yht=vn@4sb!cb9p!3&xxv6h'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = bool(os.environ.get('DEBUG', False))
 
 ALLOWED_HOSTS = []
 
@@ -83,7 +85,7 @@ WSGI_APPLICATION = 'BetCaddieAPI.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
-
+LOCAL_DB = bool(os.environ.get('LOCAL_DB', False))
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -94,6 +96,8 @@ DATABASES = {
         'PORT': 5432
     }
 }
+if not LOCAL_DB:
+    DATABASES['default'] = dj_database_url.config()
 
 
 # Password validation

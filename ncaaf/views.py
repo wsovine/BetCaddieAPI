@@ -17,6 +17,12 @@ def current_or_latest_week(request) -> JsonResponse:
     return JsonResponse(cfbd_current_week())
 
 
+@api_view(['GET'])
+def weeks_in_season(request, season: int) -> JsonResponse:
+    weeks = cfbd_games_api.get_calendar(season)
+    return JsonResponse({'weeks': [week.to_dict() for week in weeks]})
+
+
 # GAMES
 @api_view(['GET'])
 def game_list(request, season: int, season_type: str, week: int) -> JsonResponse:
