@@ -1,4 +1,8 @@
 from django.db import models
+from django.db.models.signals import post_save, pre_save
+from django.dispatch import receiver
+
+from ncaaf.calcs import win_probability, new_ratings, implied_probability
 
 
 class FantasyDataLeagueHierarchy(models.Model):
@@ -61,6 +65,95 @@ class FantasyDataGames(models.Model):
     Stadium_GeoLat = models.FloatField(null=True, blank=True)
     Stadium_GeoLong = models.FloatField(null=True, blank=True)
 
+    def create_game_bet_calcs(self):
+        # If the mapping does not exist then it is likely because the teams are not in FBS
+        # we won't calculate these
+        try:
+            away_team_mapping = TeamMappings.objects.get(fd_team=self.AwayTeamID)
+        except TeamMappings.DoesNotExist:
+            return
+        try:
+            home_team_mapping = TeamMappings.objects.get(fd_team=self.HomeTeamID)
+        except TeamMappings.DoesNotExist:
+            return
+
+        away_team, away_created = TeamCalculatedRatings.objects.get_or_create(mapping=away_team_mapping,
+                                                                              defaults={'elo': 1500})
+        home_team, home_created = TeamCalculatedRatings.objects.get_or_create(mapping=home_team_mapping,
+                                                                              defaults={'elo': 1500})
+
+        game, game_created = GameBetCalcs.objects.get_or_create(fd_game=self)
+        game.away_elo_pre = away_team.elo
+        game.home_elo_pre = home_team.elo
+
+        # PRE SCORING ADJUSTMENTS
+        # Move team halfway to 1500 if it's a new season
+        if self.Week == 1 and self.SeasonType == 1:
+            game.away_elo_pre = (game.away_elo_pre + 1500) / 2
+            game.home_elo_pre = (game.home_elo_pre + 1500) / 2
+
+        # Factor in home field advantage
+        game.home_hfa_elo_adj = 46 if not self.NeutralVenue else 0
+
+        # Matchup difference
+        away_of_plus = away_team.mapping.fo_team.OF_plus
+        home_of_plus = home_team.mapping.fo_team.OF_plus
+        away_df_plus = away_team.mapping.fo_team.DF_plus
+        home_df_plus = home_team.mapping.fo_team.DF_plus
+
+        game.away_matchup_elo_adj = (away_of_plus - home_df_plus) * 200
+        game.home_matchup_elo_adj = (home_of_plus - away_df_plus) * 200
+
+        # Add up all the adjustments
+        game.away_elo_adj = game.away_elo_pre + game.away_matchup_elo_adj
+        game.home_elo_adj = game.home_elo_pre + game.home_hfa_elo_adj + game.home_matchup_elo_adj
+
+        # Fetch the win probability for each team
+        game.away_elo_prob = win_probability(game.away_elo_adj, game.home_elo_adj)
+        game.home_elo_prob = win_probability(game.home_elo_adj, game.away_elo_adj)
+
+        # Calculate new elos
+        if self.Status in ('Final', 'F/OT') and (self.AwayTeamScore and self.HomeTeamScore):
+            # What is the margin of victory?
+            mov = abs(self.AwayTeamScore - self.HomeTeamScore)
+            # Away team wins
+            if self.AwayTeamScore > self.HomeTeamScore:
+                away_elo_post, home_elo_post = new_ratings(game.away_elo_pre, game.home_elo_pre, drawn=False, mov=mov)
+            # Home team wins
+            else:
+                home_elo_post, away_elo_post = new_ratings(game.home_elo_pre, game.away_elo_pre, drawn=False, mov=mov)
+        # Tie (not possible, game most likely hasn't been played)
+        else:
+            away_elo_post, home_elo_post = game.away_elo_pre, game.home_elo_pre
+
+        game.away_elo_post = away_elo_post
+        game.home_elo_post = home_elo_post
+
+        away_team.elo = away_elo_post
+        home_team.elo = home_elo_post
+
+        if self.AwayTeamMoneyLine:
+            game.away_ml_implied_prob = implied_probability(self.AwayTeamMoneyLine)
+        else:
+            game.away_ml_implied_prob = 1
+
+        if self.HomeTeamMoneyLine:
+            game.home_ml_implied_prob = implied_probability(self.HomeTeamMoneyLine)
+        else:
+            game.home_ml_implied_prob = 1
+
+        game.away_ml_er = game.away_elo_prob - game.away_ml_implied_prob
+        game.home_ml_er = game.home_elo_prob - game.home_ml_implied_prob
+
+        away_team.save()
+        home_team.save()
+        game.save()
+
+
+@receiver(post_save, sender=FantasyDataGames)
+def game_update_bet_calcs(sender: FantasyDataGames, instance: FantasyDataGames, **kwargs):
+    instance.create_game_bet_calcs()
+
 
 class FootballOutsidersFPlusRatings(models.Model):
     Team = models.CharField(max_length=120, primary_key=True)
@@ -72,19 +165,16 @@ class FootballOutsidersFPlusRatings(models.Model):
 
 
 class TeamMappings(models.Model):
-    fd_team_id = models.ForeignKey(FantasyDataLeagueHierarchy, to_field='TeamID', db_column='fd_team_id',
-                                   null=True, blank=True, on_delete=models.DO_NOTHING, related_name='fd_team_id')
+    fd_team = models.ForeignKey(FantasyDataLeagueHierarchy, to_field='TeamID', db_column='fd_team',
+                                null=True, blank=True, on_delete=models.DO_NOTHING, related_name='fd_team',
+                                db_constraint=False)
     fo_team = models.ForeignKey(FootballOutsidersFPlusRatings, to_field='Team', db_column='fo_team',
                                 null=True, blank=True, on_delete=models.DO_NOTHING, db_constraint=False)
     cfbd_team_id = models.IntegerField(null=True, blank=True)
 
 
 class GameBetCalcs(models.Model):
-    game_id = models.OneToOneField(FantasyDataGames, primary_key=True, on_delete=models.CASCADE)
-    away_team = models.ForeignKey(FantasyDataLeagueHierarchy, null=True, on_delete=models.CASCADE,
-                                  related_name='away_team')
-    home_team = models.ForeignKey(FantasyDataLeagueHierarchy, null=True, on_delete=models.CASCADE,
-                                  related_name='home_team')
+    fd_game = models.OneToOneField(FantasyDataGames, primary_key=True, on_delete=models.CASCADE)
     away_elo_pre = models.IntegerField(null=True)
     home_elo_pre = models.IntegerField(null=True)
     away_elo_prob = models.FloatField(null=True)
@@ -98,3 +188,14 @@ class GameBetCalcs(models.Model):
     home_scoring_matchup = models.FloatField(null=True)
     away_matchup_elo_adj = models.IntegerField(null=True)
     home_matchup_elo_adj = models.IntegerField(null=True)
+    away_ml_implied_prob = models.FloatField(null=True)
+    home_ml_implied_prob = models.FloatField(null=True)
+    away_ml_er = models.FloatField(null=True)
+    home_ml_er = models.FloatField(null=True)
+
+
+class TeamCalculatedRatings(models.Model):
+    mapping = models.ForeignKey(TeamMappings, on_delete=models.CASCADE)
+    elo = models.IntegerField()
+
+

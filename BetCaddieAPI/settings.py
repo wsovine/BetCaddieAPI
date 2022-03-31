@@ -154,3 +154,8 @@ AUTH_USER_MODEL = 'api_auth.User'
 # NCAAF API KEYS
 CFBD_API_KEY = os.environ.get('CFBD_API_KEY')
 SD_CFB_API_KEY = os.environ.get('SD_CFB_API_KEY')
+
+# NCAAF
+NCAAF_ELO_K = os.environ.get('NCAAF_ELO_K', 20)
+NCAAF_BIG_MARGIN = os.environ.get('NCAAF_BIG_MARGIN', 14)
+NCAAF_BACKFILL_SEASONS = [2019, 2020, 2021]

@@ -15,16 +15,19 @@ def load_mappings():
     Mapping table is manually created and saved in data/ncaaf_mappings.csv
     It links team ID's from different sources
     """
+    TeamMappings.objects.all().delete()
+
     s3 = boto3.client('s3')
-    mapping_file = s3.get_object(Bucket='bet-caddie', Key='ncaaf/ncaaf_mappings.csv.csv')
+    mapping_file = s3.get_object(Bucket='bet-caddie', Key='ncaaf/ncaaf_mappings.csv')
     body = mapping_file['Body']
     csv_string = body.read().decode('utf-8')
     df_mappings = pd.read_csv(StringIO(csv_string), sep=',')
-    mapping_dict = df_mappings.to_dict(orient='records')
-    model_instances = [TeamMappings(**mapping) for mapping in mapping_dict]
-    TeamMappings.objects.all().delete()
-    TeamMappings.objects.bulk_create(model_instances)
 
+    for idx, row in df_mappings.iterrows():
+        fd_team = FantasyDataLeagueHierarchy.objects.get(TeamID=row.fd_team_id)
+        fo_team = FootballOutsidersFPlusRatings.objects.get(Team=row.fo_team)
+
+        TeamMappings.objects.create(fd_team=fd_team, fo_team=fo_team, cfbd_team_id=row.cfbd_team_id)
 
 # Fantasy Data .io
 # fantasydata.io plan is restricted to 100 api calls per day, so makes
