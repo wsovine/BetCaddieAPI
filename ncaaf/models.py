@@ -2,7 +2,7 @@ from django.db import models
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from ncaaf.calcs import elo_win_probability, new_ratings, implied_probability, bayes_prob
+from ncaaf.calcs import elo_win_probability, new_ratings, implied_probability, bayes_prob, odds_profit_mult
 
 
 class FantasyDataLeagueHierarchy(models.Model):
@@ -136,22 +136,36 @@ class FantasyDataGames(models.Model):
 
         if self.AwayTeamMoneyLine:
             game.away_ml_implied_prob = implied_probability(self.AwayTeamMoneyLine)
-        else:
+        elif self.PointSpread and self.PointSpread > 0:
             game.away_ml_implied_prob = 1
+        else:
+            game.away_ml_implied_prob = 0
 
         if self.HomeTeamMoneyLine:
             game.home_ml_implied_prob = implied_probability(self.HomeTeamMoneyLine)
-        else:
+        elif self.PointSpread and self.PointSpread < 0:
             game.home_ml_implied_prob = 1
+        else:
+            game.home_ml_implied_prob = 0
 
-        game.away_ml_bayes_prob = bayes_prob(game.away_ml_implied_prob, game.away_elo_prob, game.away_ml_implied_prob)
-        game.home_ml_bayes_prob = bayes_prob(game.home_ml_implied_prob, game.home_elo_prob, game.home_ml_implied_prob)
+        game.ml_overround = (game.away_ml_implied_prob + game.home_ml_implied_prob) - 1
+        game.ml_vig = 1 - (1 / ((game.ml_overround * 100) + 100)) * 100 if game.ml_overround != -1 else 0
 
-        game.away_ml_er = game.away_elo_prob - game.away_ml_implied_prob
-        game.home_ml_er = game.home_elo_prob - game.home_ml_implied_prob
+        game.away_ml_prob_less_vig = game.away_ml_implied_prob - (game.ml_vig / 2) if self.AwayTeamMoneyLine \
+            else game.away_ml_implied_prob
+        game.home_ml_prob_less_vig = game.home_ml_implied_prob - (game.ml_vig / 2) if self.HomeTeamMoneyLine \
+            else game.home_ml_implied_prob
 
-        game.away_ml_bayes_er = game.away_ml_bayes_prob - game.away_ml_implied_prob
-        game.home_ml_bayes_er = game.home_ml_bayes_prob - game.home_ml_implied_prob
+        game.away_ml_bayes_prob = bayes_prob(game.away_ml_prob_less_vig, game.away_elo_prob, game.away_ml_prob_less_vig) \
+            if self.AwayTeamMoneyLine else game.away_ml_prob_less_vig
+        game.home_ml_bayes_prob = bayes_prob(game.home_ml_prob_less_vig, game.home_elo_prob, game.home_ml_prob_less_vig) \
+            if self.HomeTeamMoneyLine else game.home_ml_prob_less_vig
+
+        game.away_ml_diff = game.away_ml_bayes_prob - game.away_ml_implied_prob
+        game.home_ml_diff = game.home_ml_bayes_prob - game.home_ml_implied_prob
+
+        game.away_ml_er = (game.away_ml_bayes_prob * odds_profit_mult(self.AwayTeamMoneyLine)) - (1 - game.away_ml_bayes_prob) if self.AwayTeamMoneyLine else -1
+        game.home_ml_er = (game.home_ml_bayes_prob * odds_profit_mult(self.HomeTeamMoneyLine)) - (1 - game.home_ml_bayes_prob) if self.HomeTeamMoneyLine else -1
 
         away_team.save()
         home_team.save()
@@ -200,10 +214,14 @@ class GameBetCalcs(models.Model):
     home_ml_implied_prob = models.FloatField(null=True)
     away_ml_bayes_prob = models.FloatField(null=True)
     home_ml_bayes_prob = models.FloatField(null=True)
+    away_ml_diff = models.FloatField(null=True)
+    home_ml_diff = models.FloatField(null=True)
+    ml_overround = models.FloatField(null=True)
+    ml_vig = models.FloatField(null=True)
+    away_ml_prob_less_vig = models.FloatField(null=True)
+    home_ml_prob_less_vig = models.FloatField(null=True)
     away_ml_er = models.FloatField(null=True)
     home_ml_er = models.FloatField(null=True)
-    away_ml_bayes_er = models.FloatField(null=True)
-    home_ml_bayes_er = models.FloatField(null=True)
 
 
 class TeamCalculatedRatings(models.Model):

@@ -59,3 +59,9 @@ def new_ratings(winner_rating, loser_rating, drawn: bool = False, mov: int = 1):
 def bayes_prob(prior, model, vegas):
     return (prior * model) / ((prior * model) + (vegas * (1 - prior)))
 
+
+def odds_profit_mult(odds: int):
+    if odds < 0:
+        return (1 - 100 / odds) - 1
+    else:
+        return (1 + odds / 100) - 1
