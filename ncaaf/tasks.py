@@ -25,7 +25,10 @@ def load_mappings():
 
     for idx, row in df_mappings.iterrows():
         fd_team = FantasyDataLeagueHierarchy.objects.get(TeamID=row.fd_team_id)
-        fo_team = FootballOutsidersFPlusRatings.objects.get(Team=row.fo_team)
+        try:
+            fo_team = FootballOutsidersFPlusRatings.objects.get(Team=row.fo_team)
+        except FootballOutsidersFPlusRatings.DoesNotExist:
+            pass
 
         TeamMappings.objects.create(fd_team=fd_team, fo_team=fo_team, cfbd_team_id=row.cfbd_team_id)
 
@@ -75,7 +78,7 @@ def load_fo_fplus_ratings(season: int = None):
     csv_string = body.read().decode('utf-8')
     df_fplus = pd.read_csv(StringIO(csv_string), sep=',')
 
-    df_fplus.columns = df_fplus.columns.str.replace('+', '_plus')
+    df_fplus.columns = df_fplus.columns.str.replace('+', '_plus', regex=False)
     df_fplus = df_fplus[['Team', 'F_plus', 'OF_plus', 'DF_plus', 'FEI', 'SP_plus']]
     fplus_dict = df_fplus.to_dict(orient='records')
 

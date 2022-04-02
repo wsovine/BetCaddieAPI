@@ -13,7 +13,7 @@ class Command(BaseCommand):
             '--season',
             '-S',
             action='store',
-            help='Season to load games for (e.g. 2021)',
+            help='Season to load ratings for (e.g. 2021)',
         )
 
     def handle(self, *args, **options):

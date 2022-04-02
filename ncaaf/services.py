@@ -26,6 +26,8 @@ def cfbd_current_week() -> dict:
     cur_week = cfbd.Week()
     if today.date() > parser.isoparse(cal[-1].last_game_start).date():
         cur_week = cal[-1]
+    elif today.date() < parser.isoparse(cal[0].first_game_start).date():
+        cur_week = cal[0]
     else:
         for week in cal:
             start = parser.isoparse(week.first_game_start)
