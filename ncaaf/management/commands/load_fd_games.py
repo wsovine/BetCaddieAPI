@@ -23,6 +23,13 @@ class Command(BaseCommand):
             help='Load post season games for a given season',
         )
 
+        parser.add_argument(
+            '--week',
+            '-W',
+            action='store_true',
+            help='Week to load games for',
+        )
+
     def handle(self, *args, **options):
         post_season = options['post_season']
-        load_fd_games(season=options['season'], post_season=post_season)
+        load_fd_games(season=options['season'], post_season=post_season, week=options['week'])

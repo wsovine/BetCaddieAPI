@@ -1,3 +1,4 @@
+from botocore.errorfactory import ClientError
 import pandas as pd
 
 from ncaaf.models import TeamMappings, FantasyDataLeagueHierarchy, FantasyDataGames, FootballOutsidersFPlusRatings
@@ -47,33 +48,49 @@ def load_fd_teams():
     FantasyDataLeagueHierarchy.objects.bulk_create(model_instances)
 
 
-def load_fd_games(season: int = None, post_season: bool = False):
+def load_fd_games(season: int = None, post_season: bool = False, week: int = None):
     if not season:
-        week = cfbd_current_week()
-        season = week['season']
+        calendar_week = cfbd_current_week()
+        season = calendar_week['season']
     season_str = f'{season}POST' if post_season else str(season)
-    r = requests.get(f'{fd_base_url}Games/{season_str}', headers=fd_headers)
+
+    if not week:
+        r = requests.get(f'{fd_base_url}Games/{season_str}', headers=fd_headers)
+    else:
+        r = requests.get(f'{fd_base_url}GamesByWeek/{season_str}/{week}', headers=fd_headers)
+
     df_games = pd.json_normalize(r.json(), sep='_')
 
-    df_games['Day'] = pd.to_datetime(df_games['Day']).dt.date
-    df_games = df_games.fillna(np.nan).replace([np.nan], [None])
+    if not df_games.empty:
+        df_games['Day'] = pd.to_datetime(df_games['Day']).dt.date
+        df_games = df_games.fillna(np.nan).replace([np.nan], [None])
 
-    games_dict = df_games.to_dict(orient='records')
-    for game in games_dict:
-        away_team = FantasyDataLeagueHierarchy(TeamID=game.pop('AwayTeamID'))
-        home_team = FantasyDataLeagueHierarchy(TeamID=game.pop('HomeTeamID'))
-        game['AwayTeam'] = away_team
-        game['HomeTeam'] = home_team
-        FantasyDataGames.objects.update_or_create(**game)
+        games_dict = df_games.to_dict(orient='records')
+        for game in games_dict:
+            away_team = FantasyDataLeagueHierarchy(TeamID=game.pop('AwayTeamID'))
+            home_team = FantasyDataLeagueHierarchy(TeamID=game.pop('HomeTeamID'))
+            game['AwayTeam'] = away_team
+            game['HomeTeam'] = home_team
+            FantasyDataGames.objects.update_or_create(**game)
 
 
 # Football Outsiders
-def load_fo_fplus_ratings(season: int = None):
+def load_fo_fplus_ratings(season: int = None, season_type: str = None, week: int = None):
     if not season:
-        week = cfbd_current_week()
-        season = week['season']
+        calendar_week = cfbd_current_week()
+        season = calendar_week['season']
+        season_type = calendar_week['season_type'] if not season_type else season_type
+        week = calendar_week['week'] if not week else week
+
     s3 = boto3.client('s3')
-    mapping_file = s3.get_object(Bucket='bet-caddie', Key=f'ncaaf/{season} COLLEGE FOOTBALL F+ RATINGS.csv')
+    try:
+        mapping_file = s3.get_object(
+            Bucket='bet-caddie',
+            Key=f'ncaaf/{season} {season_type} {week} COLLEGE FOOTBALL F+ RATINGS.csv'
+        )
+    except ClientError:
+        mapping_file = s3.get_object(Bucket='bet-caddie', Key=f'ncaaf/{season} COLLEGE FOOTBALL F+ RATINGS.csv')
+
     body = mapping_file['Body']
     csv_string = body.read().decode('utf-8')
     df_fplus = pd.read_csv(StringIO(csv_string), sep=',')
