@@ -173,7 +173,7 @@ class FantasyDataGames(models.Model):
 
 
 @receiver(post_save, sender=FantasyDataGames)
-def game_update_bet_calcs(sender: FantasyDataGames, instance: FantasyDataGames, **kwargs):
+def game_celo_bet_calcs(sender: FantasyDataGames, instance: FantasyDataGames, **kwargs):
     instance.create_game_bet_calcs()
 
 
@@ -270,5 +270,5 @@ class ArmBetCalcs(models.Model):
 
 
 @receiver(pre_save, sender=ArmBetCalcs)
-def game_update_bet_calcs(sender: ArmBetCalcs, instance: ArmBetCalcs, **kwargs):
+def game_arm_bet_calcs(sender: ArmBetCalcs, instance: ArmBetCalcs, **kwargs):
     instance.bet_calcs()

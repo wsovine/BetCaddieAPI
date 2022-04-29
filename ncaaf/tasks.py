@@ -204,12 +204,7 @@ def load_prediction_tracker_lines(season: int, season_type: str, week: int = Non
         df.drop_duplicates(subset=['home_team', 'away_team', 'home_score', 'away_score'], inplace=True)
     df.drop(columns=['home_join', 'away_join'], inplace=True)
 
-    print(df_lines.shape)
-    print(df_pred.shape)
-    print(df.shape)
-
     # Load the pycaret model
-    print('Loading pycaret model from S3')
     model = load_model(
         model_name='ncaaf_arm_v3',
         platform='aws',
