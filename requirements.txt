@@ -10,3 +10,4 @@ cfbd
 python-dateutil
 dj-database-url
 django-cors-headers
+psycopg2
