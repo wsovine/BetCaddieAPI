@@ -9,3 +9,4 @@ djangorestframework
 cfbd
 python-dateutil
 dj-database-url
+corsheaders
