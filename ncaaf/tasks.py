@@ -1,13 +1,15 @@
 from botocore.errorfactory import ClientError
-import pandas as pd
 
-from ncaaf.models import TeamMappings, FantasyDataLeagueHierarchy, FantasyDataGames, FootballOutsidersFPlusRatings
+from ncaaf.models import TeamMappings, FantasyDataLeagueHierarchy, FantasyDataGames, FootballOutsidersFPlusRatings, \
+    ArmBetCalcs
 import requests
 import boto3
 from io import StringIO
-import numpy as np
+from pycaret.classification import *
+import difflib
+from tqdm.auto import tqdm
 
-from ncaaf.services import fd_base_url, fd_headers, cfbd_current_week
+from ncaaf.services import fd_base_url, fd_headers, cfbd_current_week, cfbd_bet_api
 
 
 # Mapping
@@ -101,5 +103,136 @@ def load_fo_fplus_ratings(season: int = None, season_type: str = None, week: int
 
     for ratings in fplus_dict:
         FootballOutsidersFPlusRatings.objects.update_or_create(**ratings)
+
+
+# The Prediction Tracker
+def load_prediction_tracker_lines(season: int, season_type: str, week: int = None):
+    tqdm.pandas()
+
+    season = int(season)
+    week = int(week) if week else week
+
+    # Load prediction tracker rating line csv from s3 bucket
+    s3_resource = boto3.resource('s3')
+    s3_client = boto3.client('s3')
+    prediction_tracker_bucket = s3_resource.Bucket('bet-caddie')
+    keys = [o.key for o in prediction_tracker_bucket.objects.filter(Prefix='ncaaf/prediction_tracker/')]
+    if f'ncaaf/prediction_tracker/ncaa{season} {season_type} {week}.csv' in keys:
+        mapping_file = s3_client.get_object(
+            Bucket='bet-caddie',
+            Key=f'ncaaf/prediction_tracker/ncaa{season} {season_type} {week}.csv'
+        )
+    elif f'ncaaf/prediction_tracker/ncaa{season}.csv' in keys:
+        mapping_file = s3_client.get_object(
+            Bucket='bet-caddie',
+            Key=f'ncaaf/prediction_tracker/ncaa{season}.csv'
+        )
+    else:
+        return None
+
+    body = mapping_file['Body']
+    csv_string = body.read().decode('utf-8')
+    df_pred = pd.read_csv(StringIO(csv_string), sep=',')
+
+    if df_pred.empty:
+        return None
+
+    # Load the Betting Lines data from CFBD
+    if week:
+        games = cfbd_bet_api.get_lines(year=season, season_type=season_type, week=week)
+    else:
+        games = cfbd_bet_api.get_lines(year=season, season_type=season_type)
+    df_lines = pd.json_normalize([g.to_dict() for g in games])
+
+    def get_line(lines, side: str):
+        try:
+            return [l[f'{side}Moneyline'] for l in lines if l['provider'] == 'Bovada'][0]
+        except IndexError:
+            return None
+
+    df_lines['home_ml'] = df_lines.lines.apply(lambda r: get_line(r, 'home'))
+    df_lines['away_ml'] = df_lines.lines.apply(lambda r: get_line(r, 'away'))
+
+    df_lines.dropna(subset=['home_ml', 'away_ml'], axis=0, inplace=True)
+
+    if df_lines.empty:
+        return None
+
+    # Match betting line data with prediction tracker data
+    team_mapping = {
+        'Massachusetts': 'UMass',
+        'Miami (Fla.)': 'Miami',
+        'Louisiana-Lafayette': 'Lafayette',
+        'Mississippi': 'Ole Miss'
+    }
+
+    df_pred.Home = df_pred.Home.replace(team_mapping)
+    df_pred.Road = df_pred.Road.replace(team_mapping)
+
+    unmatchable = set()
+
+    def match_team(team):
+        try:
+            return difflib.get_close_matches(
+                team, set(df_lines.home_team.unique().tolist() + df_lines.away_team.unique().tolist())
+            )[0]
+        except IndexError:
+            unmatchable.add(team)
+            return None
+
+    print('Matching home teams...')
+    df_pred['home_join'] = df_pred.Home.progress_apply(lambda t: match_team(t))
+    print('Matching away teams...')
+    df_pred['away_join'] = df_pred.Road.progress_apply(lambda t: match_team(t))
+    print(f'Teams that couldnt be matched: {unmatchable}')
+
+    # Merge Dataframes
+    if week:
+        df = df_lines.merge(
+            df_pred,
+            left_on=['home_team', 'away_team'],
+            right_on=['home_join', 'away_join']
+        )
+        df.drop_duplicates(subset=['home_team', 'away_team'], inplace=True)
+    else:
+        df_pred.drop(columns=['week'], inplace=True)
+        df = df_lines.merge(
+            df_pred,
+            left_on=['home_team', 'away_team', 'home_score', 'away_score'],
+            right_on=['home_join', 'away_join', 'hscore', 'vscore']
+        )
+        df.drop_duplicates(subset=['home_team', 'away_team', 'home_score', 'away_score'], inplace=True)
+    df.drop(columns=['home_join', 'away_join'], inplace=True)
+
+    print(df_lines.shape)
+    print(df_pred.shape)
+    print(df.shape)
+
+    # Load the pycaret model
+    print('Loading pycaret model from S3')
+    model = load_model(
+        model_name='ncaaf_arm_v3',
+        platform='aws',
+        authentication={
+            'bucket': 'bet-caddie'
+        },
+        verbose=True
+    )
+
+    # Get predictions
+    print('Running model predictions')
+    df_model = predict_model(model, df, raw_score=True)
+
+    # Save to database
+    bet_calc_data = df_model[[
+        'id', 'Score_False', 'Score_True', 'away_ml', 'home_ml'
+    ]].rename(columns={
+        'id': 'cfbd_game_id',
+        'Score_False': 'away_ml_prob',
+        'Score_True': 'home_ml_prob'
+    }).to_dict(orient='records')
+
+    return [ArmBetCalcs.objects.create(**data) for data in bet_calc_data]
+
 
 # Odds API

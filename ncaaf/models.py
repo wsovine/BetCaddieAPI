@@ -82,7 +82,7 @@ class FantasyDataGames(models.Model):
         home_team, home_created = TeamCalculatedRatings.objects.get_or_create(mapping=home_team_mapping,
                                                                               defaults={'elo': 1500})
 
-        game, game_created = GameBetCalcs.objects.get_or_create(fd_game=self)
+        game, game_created = CeloBetCalcs.objects.get_or_create(fd_game=self)
         game.away_elo_pre = away_team.elo
         game.home_elo_pre = home_team.elo
 
@@ -195,7 +195,7 @@ class TeamMappings(models.Model):
     cfbd_team_id = models.IntegerField(null=True, blank=True)
 
 
-class GameBetCalcs(models.Model):
+class CeloBetCalcs(models.Model):
     fd_game = models.OneToOneField(FantasyDataGames, primary_key=True, on_delete=models.CASCADE)
     away_elo_pre = models.IntegerField(null=True)
     home_elo_pre = models.IntegerField(null=True)
@@ -229,3 +229,46 @@ class TeamCalculatedRatings(models.Model):
     elo = models.IntegerField()
 
 
+class ArmBetCalcs(models.Model):
+    cfbd_game_id = models.BigIntegerField(primary_key=True)
+    away_ml = models.IntegerField(null=True)
+    home_ml = models.IntegerField(null=True)
+    away_ml_prob = models.FloatField(null=True)
+    home_ml_prob = models.FloatField(null=True)
+    away_ml_implied_prob = models.FloatField(null=True)
+    home_ml_implied_prob = models.FloatField(null=True)
+    away_ml_bayes_prob = models.FloatField(null=True)
+    home_ml_bayes_prob = models.FloatField(null=True)
+    ml_overround = models.FloatField(null=True)
+    ml_vig = models.FloatField(null=True)
+    away_ml_prob_less_vig = models.FloatField(null=True)
+    home_ml_prob_less_vig = models.FloatField(null=True)
+    away_ml_er = models.FloatField(null=True)
+    home_ml_er = models.FloatField(null=True)
+
+    def bet_calcs(self):
+        self.away_ml_implied_prob = implied_probability(self.away_ml)
+        self.home_ml_implied_prob = implied_probability(self.home_ml)
+
+        self.ml_overround = (self.away_ml_implied_prob + self.home_ml_implied_prob) -1
+        self.ml_vig = 1 - (1 / ((self.ml_overround * 100) + 100)) * 100 if self.ml_overround != -1 else 0
+
+        self.away_ml_prob_less_vig = self.away_ml_implied_prob - (self.ml_vig / 2) if self.away_ml \
+            else self.away_ml_implied_prob
+        self.home_ml_prob_less_vig = self.home_ml_implied_prob - (self.ml_vig / 2) if self.home_ml \
+            else self.home_ml_implied_prob
+
+        self.away_ml_bayes_prob = bayes_prob(self.away_ml_prob_less_vig, self.away_ml_prob, self.away_ml_prob_less_vig) \
+            if self.away_ml else self.away_ml_prob_less_vig
+        self.home_ml_bayes_prob = bayes_prob(self.home_ml_prob_less_vig, self.home_ml_prob, self.home_ml_prob_less_vig) \
+            if self.home_ml else self.home_ml_prob_less_vig
+
+        self.away_ml_er = (self.away_ml_bayes_prob * odds_profit_mult(self.away_ml)) - (
+                    1 - self.away_ml_bayes_prob) if self.away_ml else -1
+        self.home_ml_er = (self.home_ml_bayes_prob * odds_profit_mult(self.home_ml)) - (
+                    1 - self.home_ml_bayes_prob) if self.home_ml else -1
+
+
+@receiver(pre_save, sender=ArmBetCalcs)
+def game_update_bet_calcs(sender: ArmBetCalcs, instance: ArmBetCalcs, **kwargs):
+    instance.bet_calcs()

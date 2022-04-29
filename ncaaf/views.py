@@ -1,14 +1,9 @@
-from datetime import datetime, timedelta
-
-import cfbd
-from dateutil import parser
-from django.forms import model_to_dict
 from django.http import JsonResponse
 from rest_framework.decorators import api_view
 
-from ncaaf.models import FantasyDataGames
-from ncaaf.serializers import FantasyDataGameSerializer
-from ncaaf.services import cfbd_bet_api, cfbd_current_week, cfbd_games_api
+from ncaaf.models import FantasyDataGames, ArmBetCalcs
+from ncaaf.serializers import FantasyDataGameSerializer, ArmBetCalcsSerializer
+from ncaaf.services import cfbd_current_week, cfbd_games_api
 
 
 # SEASONS AND WEEKS
@@ -25,7 +20,7 @@ def weeks_in_season(request, season: int) -> JsonResponse:
 
 # GAMES
 @api_view(['GET'])
-def game_list(request, season: int, season_type: str, week: int) -> JsonResponse:
+def celo_game_list(request, season: int, season_type: str, week: int) -> JsonResponse:
     fd_games = FantasyDataGames.objects.filter(
         Season=season,
         SeasonType=3 if season_type == 'postseason' else 1,
@@ -35,3 +30,24 @@ def game_list(request, season: int, season_type: str, week: int) -> JsonResponse
     games = FantasyDataGameSerializer(fd_games, many=True)
 
     return JsonResponse({'games': games.data})
+
+
+@api_view(['GET'])
+def arm_game_list(request, season: int, season_type: str, week: int) -> JsonResponse:
+    cfbd_games = cfbd_games_api.get_games(
+        year=season,
+        season_type=season_type,
+        week=week
+    )
+
+    games = [g.to_dict() for g in cfbd_games]
+
+    for game in games:
+        try:
+            armbetcalcs = ArmBetCalcs.objects.get(cfbd_game_id=game['id'])
+        except ArmBetCalcs.DoesNotExist:
+            armbetcalcs = ArmBetCalcs()
+
+        game['armbetcalcs'] = ArmBetCalcsSerializer(armbetcalcs, many=False).data
+
+    return JsonResponse({'games': games})

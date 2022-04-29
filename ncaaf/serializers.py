@@ -1,11 +1,11 @@
 from rest_framework import serializers
 
-from ncaaf.models import FantasyDataGames, GameBetCalcs, FantasyDataLeagueHierarchy
+from ncaaf.models import FantasyDataGames, CeloBetCalcs, FantasyDataLeagueHierarchy, ArmBetCalcs
 
 
-class GameBetCalcsSerializer(serializers.ModelSerializer):
+class CeloBetCalcsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = GameBetCalcs
+        model = CeloBetCalcs
         fields = "__all__"
 
 
@@ -16,10 +16,18 @@ class FantasyDataTeamSerializer(serializers.ModelSerializer):
 
 
 class FantasyDataGameSerializer(serializers.ModelSerializer):
-    gamebetcalcs = GameBetCalcsSerializer(read_only=True)
+    celobetcalcs = CeloBetCalcsSerializer(read_only=True)
     AwayTeam = FantasyDataTeamSerializer(read_only=True)
     HomeTeam = FantasyDataTeamSerializer(read_only=True)
 
     class Meta:
         model = FantasyDataGames
+        fields = "__all__"
+
+
+class ArmBetCalcsSerializer(serializers.ModelSerializer):
+    cfbd_game_id = serializers.IntegerField()
+
+    class Meta:
+        model = ArmBetCalcs
         fields = "__all__"
