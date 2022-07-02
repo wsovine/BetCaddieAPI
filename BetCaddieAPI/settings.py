@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     # Local Apps
     'api_auth',
     'ncaaf',
+    'ncaaf_bayes_arm',
 ]
 
 MIDDLEWARE = [
@@ -96,10 +97,21 @@ DATABASES = {
         'PASSWORD': os.environ.get('DB_PASSWORD'),
         'HOST': '127.0.0.1',
         'PORT': 5432
-    }
+    },
+    'sf': {
+        'ENGINE': 'django_snowflake',
+        'NAME': 'NCAAF',
+        'SCHEMA': 'PUBLIC',
+        'WAREHOUSE': 'API_WH',
+        'USER': os.environ.get('SF_USER', 'wsovine'),
+        'PASSWORD': os.environ.get('SF_PASSWORD'),
+        'ACCOUNT': 'UTWPZLG-IB29882',
+    },
 }
 if not LOCAL_DB:
     DATABASES['default'] = dj_database_url.config()
+
+DATABASE_ROUTERS = ['BetCaddieAPI.db_routers.SnowflakeRouter']
 
 
 # Password validation
