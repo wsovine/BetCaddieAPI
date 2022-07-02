@@ -19,4 +19,5 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('ncaaf/', include('ncaaf.urls')),
+    path('ncaaf/', include('ncaaf_bayes_arm.urls'))
 ]
