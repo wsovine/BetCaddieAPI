@@ -42,3 +42,20 @@ class BayesArm(models.Model):
         managed = False  # Created from a view. Don't remove.
         db_table = 'bayes_arm_view'
 
+
+class CurrentOdds(models.Model):
+    id = models.TextField(primary_key=True)
+    cfbd_game_id = models.BigIntegerField(blank=True, null=True)
+    team_cfbd_id = models.BigIntegerField(blank=True, null=True)
+    name = models.TextField(blank=True, null=True)
+    price = models.BigIntegerField(blank=True, null=True)
+    sports_data_game_id = models.BigIntegerField(blank=True, null=True)
+    sports_data_away_team_id = models.BigIntegerField(blank=True, null=True)
+    sports_data_home_team_id = models.BigIntegerField(blank=True, null=True)
+    cfbd_away_team_id = models.BigIntegerField(blank=True, null=True)
+    cfbd_home_team_id = models.BigIntegerField(blank=True, null=True)
+    bookmakers_title = models.TextField(blank=True, null=True)
+
+    class Meta:
+        managed = False  # Created from a view. Don't remove.
+        db_table = 'current_odds_view'
