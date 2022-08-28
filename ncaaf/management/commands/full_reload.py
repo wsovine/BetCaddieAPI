@@ -61,4 +61,4 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.celo_data()
-        self.arm_data()
+        # self.arm_data()
