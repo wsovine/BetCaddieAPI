@@ -133,6 +133,7 @@ def load_prediction_tracker_lines(season: int, season_type: str, week: int = Non
     body = mapping_file['Body']
     csv_string = body.read().decode('utf-8')
     df_pred = pd.read_csv(StringIO(csv_string), sep=',')
+    df_pred.columns = df_pred.columns.str.lower()
 
     if df_pred.empty:
         return None
@@ -166,8 +167,10 @@ def load_prediction_tracker_lines(season: int, season_type: str, week: int = Non
         'Mississippi': 'Ole Miss'
     }
 
-    df_pred.Home = df_pred.Home.replace(team_mapping)
-    df_pred.Road = df_pred.Road.replace(team_mapping)
+    print(df_pred)
+
+    df_pred.home = df_pred.home.replace(team_mapping)
+    df_pred.road = df_pred.road.replace(team_mapping)
 
     unmatchable = set()
 
@@ -181,10 +184,10 @@ def load_prediction_tracker_lines(season: int, season_type: str, week: int = Non
             return None
 
     print('Matching home teams...')
-    df_pred['home_join'] = df_pred.Home.progress_apply(lambda t: match_team(t))
+    df_pred['home_join'] = df_pred.home.progress_apply(lambda t: match_team(t))
     print('Matching away teams...')
-    df_pred['away_join'] = df_pred.Road.progress_apply(lambda t: match_team(t))
-    print(f'Teams that couldnt be matched: {unmatchable}')
+    df_pred['away_join'] = df_pred.road.progress_apply(lambda t: match_team(t))
+    print(f'Teams that couldnt be matched ({season} {season_type} {week}): {unmatchable}')
 
     # Merge Dataframes
     if week:
