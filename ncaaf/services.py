@@ -1,4 +1,5 @@
 import cfbd
+import pytz
 from django.conf import settings
 from dateutil import parser
 from datetime import datetime, timedelta
@@ -15,7 +16,7 @@ cfbd_bet_api = cfbd.BettingApi(_cfbd_client_configuration)
 
 
 def cfbd_current_week() -> dict:
-    today = datetime.now()
+    today = datetime.utcnow().replace(tzinfo=pytz.utc)
     cur_year = today.year
 
     cal = cfbd_games_api.get_calendar(cur_year)
@@ -32,7 +33,7 @@ def cfbd_current_week() -> dict:
         for week in cal:
             start = parser.isoparse(week.first_game_start)
             end = parser.isoparse(week.last_game_start) + timedelta(hours=4)
-            if today in (start, end):
+            if start <= today <= end:
                 cur_week = week
     return cur_week.to_dict()
 
