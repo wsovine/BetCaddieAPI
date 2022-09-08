@@ -35,6 +35,12 @@ def cfbd_current_week() -> dict:
             end = parser.isoparse(week.last_game_start) + timedelta(hours=4)
             if start <= today <= end:
                 cur_week = week
+                break
+        if not cur_week.week:
+            for week in cal:
+                end = parser.isoparse(week.last_game_start) + timedelta(hours=4)
+                if today >= end:
+                    cur_week = cal[cal.index(week) + 1]
     return cur_week.to_dict()
 
 
